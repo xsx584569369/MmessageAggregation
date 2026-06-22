@@ -1036,8 +1036,20 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 def main():
+    # Windows：显式设置 AppUserModelID，让系统通知/任务栏正确归属到本应用
+    # （否则通知标题会显示成进程名 ChipNews / Python）
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+                "ChipNews.芯讯")
+        except Exception:  # noqa: BLE001
+            pass
+
     app = QtWidgets.QApplication(sys.argv)
     app.setStyle("Fusion")
+    app.setApplicationName("芯讯")
+    app.setApplicationDisplayName("芯讯 · 存储芯片资讯台")
     app.setQuitOnLastWindowClosed(False)
     win = MainWindow()  # 主题在 MainWindow 内 apply_theme 应用
     win.show()
