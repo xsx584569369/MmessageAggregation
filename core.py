@@ -25,7 +25,7 @@ ORIGIN_LABEL = {
 
 FETCH_WORKERS = 8  # 并发抓取的线程数
 
-APP_VERSION = "1.0.1"                          # 当前版本（发版时改这里 / 与 git tag 对应）
+APP_VERSION = "1.0.2"                          # 当前版本（发版时改这里 / 与 git tag 对应）
 GITHUB_REPO = "xsx584569369/MmessageAggregation"  # 检查更新用的仓库
 
 # 默认配置（首次运行写入 config.json，之后以文件为准）

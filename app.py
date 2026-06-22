@@ -484,6 +484,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._shown = 0          # 已渲染条数
         self._cards = {}         # url -> Card，供就地更新
         self._fav_item = None    # 左侧「收藏」树项，供就地更新计数
+        self._all_item = None    # 左侧「全部消息」树项，未读/全部视图回到它
 
         self.setWindowTitle(f"芯讯 · 存储芯片资讯台  v{APP_VERSION}")
         self.setWindowIcon(make_icon())
@@ -707,6 +708,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.read_filter = kind
         for k, b in self.read_chips.items():
             b.setChecked(k == kind)
+        # 「全部/未读」是全局视图：重置左侧分类到「全部消息」，
+        # 否则若之前选了某公司/收藏，未读可能不在该范围内而显示为空
+        self.scope = ("all", None)
+        if self._all_item is not None:
+            self.tree.blockSignals(True)
+            self.tree.setCurrentItem(self._all_item)
+            self.tree.blockSignals(False)
         self.render_feed()
 
     def _toggle_src(self, key):
@@ -901,6 +909,7 @@ class MainWindow(QtWidgets.QMainWindow):
         h1 = header("信息流")
         all_item = leaf(h1, f"全部消息   ({len(self.items)})", ("all", None),
                         glyph_icon("📥", 16))
+        self._all_item = all_item
         self._fav_item = leaf(h1, f"收藏   ({fav})" if fav else "收藏",
                               ("fav", None), glyph_icon("⭐", 16))
         h1.setExpanded(True)
