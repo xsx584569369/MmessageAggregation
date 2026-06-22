@@ -71,8 +71,16 @@ iscc installer.iss
   安装包版本号取自 tag（`v1.0.1` → `1.0.1`），自动挂到 Releases 页并生成发布说明。
 
 版本号来源：
-- 应用内显示（窗口标题）：改 `app.py` 顶部的 `APP_VERSION`
+- 应用内当前版本：改 `core.py` 顶部的 `APP_VERSION`（窗口标题显示，并用于检查更新比对）
 - 安装包版本：打 tag 时取 tag；手动运行时取输入框，留空为 `0.0.0-dev`
+- 建议发版时让两者一致：先把 `core.py` 的 `APP_VERSION` 改成 `1.0.1`，提交后 `git tag v1.0.1 && git push origin v1.0.1`
+
+### 检查更新
+
+应用启动后会静默查询 GitHub 最新 Release（仓库见 `core.py` 的 `GITHUB_REPO`）：
+- 有新版 → 工具栏出现「新版 vX.Y.Z」按钮 + 托盘通知，点击前往下载
+- 托盘菜单「检查更新」可手动检查
+- 因此**发版只要打 tag**（出 Release），所有装了旧版的用户下次开都会被提醒更新
 
 ---
 

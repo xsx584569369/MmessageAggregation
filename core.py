@@ -25,6 +25,9 @@ ORIGIN_LABEL = {
 
 FETCH_WORKERS = 8  # 并发抓取的线程数
 
+APP_VERSION = "1.0.0"                          # 当前版本（发版时改这里 / 与 git tag 对应）
+GITHUB_REPO = "xsx584569369/MmessageAggregation"  # 检查更新用的仓库
+
 # 默认配置（首次运行写入 config.json，之后以文件为准）
 DEFAULT_CONFIG = {
     "enable": dict(dn.ENABLE),          # 数据源开关
@@ -230,3 +233,37 @@ def fetch_all(cfg, progress=None):
     arrived_set = set(arrived_ids)
     arrived = [] if first_build else [it for it in items if it["id"] in arrived_set]
     return {"items": items, "arrived": arrived}
+
+
+# ----------------------------------------------------------- 检查更新
+
+def _ver_tuple(s):
+    """'v1.2.3' / '1.2.3-dev' -> (1,2,3)，用于比较版本大小。"""
+    s = (s or "").lstrip("vV").split("-")[0].split("+")[0]
+    out = []
+    for p in s.split("."):
+        try:
+            out.append(int(p))
+        except ValueError:
+            out.append(0)
+    return tuple(out) or (0,)
+
+
+def check_update():
+    """查询 GitHub 最新 Release，返回 {latest, url, has_update} 或 None（查询失败）。"""
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+    txt = dn._http_get(url, extra_headers={"Accept": "application/vnd.github+json"})
+    if not txt:
+        return None
+    try:
+        d = json.loads(txt)
+    except Exception:  # noqa: BLE001
+        return None
+    tag = d.get("tag_name")
+    if not tag:
+        return None
+    return {
+        "latest": tag.lstrip("vV"),
+        "url": d.get("html_url") or f"https://github.com/{GITHUB_REPO}/releases",
+        "has_update": _ver_tuple(tag) > _ver_tuple(APP_VERSION),
+    }

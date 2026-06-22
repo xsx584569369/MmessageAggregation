@@ -16,7 +16,7 @@ from PySide6.QtCore import Qt, QThread, Signal, QTimer, QSize
 
 import core
 
-APP_VERSION = "1.0.0"   # 发版时改这里；GitHub 打 tag 时安装包版本以 tag 为准
+APP_VERSION = core.APP_VERSION   # 单一来源在 core.py
 SOURCES = [("em_feed", "东财个股流"), ("em_search", "东财搜索"),
            ("google", "Google"), ("yahoo", "Yahoo")]
 
@@ -186,6 +186,16 @@ def _pill(text, bg, fg, bold=False):
         f"background:{bg}; color:{fg}; border-radius:9px; padding:1px 8px;"
         f" font-size:11px; font-weight:{w};")
     return lb
+
+
+class UpdateWorker(QThread):
+    checked = Signal(object)  # core.check_update() 的结果，或 None
+
+    def run(self):
+        try:
+            self.checked.emit(core.check_update())
+        except Exception:  # noqa: BLE001
+            self.checked.emit(None)
 
 
 class Card(QtWidgets.QFrame):
@@ -497,7 +507,10 @@ class MainWindow(QtWidgets.QMainWindow):
         if app:
             app.aboutToQuit.connect(core.flush)
 
+        self._update_url = ""
+        self._manual_upd = False
         QTimer.singleShot(300, self.refresh)
+        QTimer.singleShot(2500, self.check_update)  # 启动后静默检查更新
 
     # ---------- 工具栏
     def _build_toolbar(self):
@@ -554,6 +567,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.bell.setToolTip("查看未读")
         self.bell.clicked.connect(self._show_unread)
         tb.addWidget(self.bell)
+
+        self.upd_btn = QtWidgets.QToolButton()
+        self.upd_btn.setObjectName("accent")
+        self.upd_btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.upd_btn.setIcon(glyph_icon("⬆️"))
+        self.upd_btn.setToolTip("有新版本可更新，点击前往下载")
+        self.upd_btn.clicked.connect(self._open_update)
+        self.upd_btn.hide()  # 仅在发现新版本时显示
+        tb.addWidget(self.upd_btn)
 
         tb.addSeparator()
 
@@ -666,6 +688,7 @@ class MainWindow(QtWidgets.QMainWindow):
         menu = QtWidgets.QMenu()
         menu.addAction("显示主窗口", self.showNormal)
         menu.addAction("立即刷新", self.refresh)
+        menu.addAction("检查更新", lambda: self.check_update(manual=True))
         menu.addSeparator()
         menu.addAction("退出", QtWidgets.QApplication.quit)
         self.tray.setContextMenu(menu)
@@ -717,6 +740,43 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.items:        # 重新渲染以应用卡片内联配色
             self._build_tree()
             self.render_feed()
+
+    def check_update(self, manual=False):
+        self._manual_upd = manual
+        self._uw = UpdateWorker()
+        self._uw.checked.connect(self._on_update)
+        self._uw.start()
+
+    def _on_update(self, res):
+        manual = self._manual_upd
+        self._manual_upd = False
+        if res is None:
+            if manual:
+                QtWidgets.QMessageBox.information(
+                    self, "检查更新",
+                    "暂时无法获取更新信息（可能尚未发布任何版本，或网络问题）。")
+            return
+        if res["has_update"]:
+            self._update_url = res["url"]
+            self.upd_btn.setText(f"新版 v{res['latest']}")
+            self.upd_btn.show()
+            self.tray.showMessage(
+                f"发现新版本 v{res['latest']}",
+                "点工具栏「新版」按钮前往下载", make_icon(), 8000)
+            if manual:
+                self._open_update()
+        else:
+            self.upd_btn.hide()
+            if manual:
+                QtWidgets.QMessageBox.information(
+                    self, "检查更新", f"当前已是最新版本（v{core.APP_VERSION}）。")
+
+    def _open_update(self):
+        url = self._update_url or f"https://github.com/{core.GITHUB_REPO}/releases"
+        try:
+            webbrowser.open(url)
+        except Exception:  # noqa: BLE001
+            pass
 
     def _apply_interval(self):
         mins = int(self.cfg.get("interval_min", 5))
