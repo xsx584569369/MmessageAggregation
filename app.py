@@ -377,6 +377,12 @@ class SettingsDialog(QtWidgets.QDialog):
         frow.addStretch()
         lay.addLayout(frow)
 
+        # 代理（内网/无外网时让海外源走代理）
+        lay.addWidget(self._h("代理（海外源 Google/Yahoo 连不上时填）"))
+        self.le_proxy = QtWidgets.QLineEdit(cfg.get("proxy", ""))
+        self.le_proxy.setPlaceholderText("如 http://127.0.0.1:7890 或 socks5://127.0.0.1:1080，留空=直连")
+        lay.addWidget(self.le_proxy)
+
         # 钉钉推送
         lay.addWidget(self._h("钉钉推送（群自定义机器人）"))
         dt = cfg.get("dingtalk") or {}
@@ -439,6 +445,7 @@ class SettingsDialog(QtWidgets.QDialog):
         self.cfg["notify_only_keyword"] = self.cb_only_kw.isChecked()
         self.cfg["interval_min"] = self.intervals[self.interval.currentIndex()][1]
         self.cfg["theme"] = self.themes[self.theme.currentIndex()][1]
+        self.cfg["proxy"] = self.le_proxy.text().strip()
         self.cfg["dingtalk"] = self._dingtalk_cfg()
         return self.cfg
 
@@ -520,6 +527,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cfg = core.load_config()
         if not core.CONFIG_FILE.exists():
             core.save_config(self.cfg)
+        core.set_proxy(self.cfg)        # 让首次检查更新等也走代理
         self.items = []
         self.scope = ("all", None)
         self.read_filter = "all"
@@ -858,6 +866,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.cfg = dlg.result_config()
             self.cfg["days"] = self.DAYS[self.days_combo.currentIndex()][1]
             core.save_config(self.cfg)
+            core.set_proxy(self.cfg)
             self.apply_theme(self.cfg.get("theme", "dark"))
             self._apply_interval()
             self.refresh()

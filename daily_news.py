@@ -103,6 +103,10 @@ def _today():
 # Windows 下隐藏子进程的控制台窗口（否则每次调 curl 都会闪一个黑窗口）
 _NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
+# 代理地址，形如 http://127.0.0.1:7890 或 socks5://127.0.0.1:1080，空=直连。
+# 由 core 按配置注入；用于在内网/无外网环境下经代理访问 Google/Yahoo 等海外源。
+PROXY = ""
+
 
 def _http_get(url, extra_headers=None):
     """用系统 curl 发请求并返回响应文本。
@@ -113,6 +117,8 @@ def _http_get(url, extra_headers=None):
         headers.update(extra_headers)
     # 不用 --compressed：部分老版本 Windows 自带 curl 不支持该选项会直接报错(rc=2)
     cmd = ["curl", "-s", "-m", "12", "--connect-timeout", "6", url]
+    if PROXY:
+        cmd += ["--proxy", PROXY]
     for k, v in headers.items():
         cmd += ["-H", f"{k}: {v}"]
     last = None
@@ -141,6 +147,8 @@ def http_post(url, body, extra_headers=None):
         headers.update(extra_headers)
     cmd = ["curl", "-s", "-m", "12", "--connect-timeout", "6",
            "-X", "POST", "--data-raw", body, url]
+    if PROXY:
+        cmd += ["--proxy", PROXY]
     for k, v in headers.items():
         cmd += ["-H", f"{k}: {v}"]
     try:

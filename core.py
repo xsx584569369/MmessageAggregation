@@ -30,7 +30,7 @@ ORIGIN_LABEL = {
 
 FETCH_WORKERS = 8  # 并发抓取的线程数
 
-APP_VERSION = "1.0.5"                          # 当前版本（发版时改这里 / 与 git tag 对应）
+APP_VERSION = "1.0.6"                          # 当前版本（发版时改这里 / 与 git tag 对应）
 GITHUB_REPO = "xsx584569369/MmessageAggregation"  # 检查更新用的仓库
 
 # 默认配置（首次运行写入 config.json，之后以文件为准）
@@ -43,6 +43,7 @@ DEFAULT_CONFIG = {
     "notify_only_keyword": False,        # 仅命中关键词才提醒
     "keywords": ["HBM", "涨价", "减产", "财报", "量产", "大宗交易"],
     "theme": "dark",                     # 界面主题：dark / light
+    "proxy": "",                         # 代理，如 http://127.0.0.1:7890，空=直连（海外源需要时填）
     "dingtalk": {                        # 钉钉自定义机器人推送
         "enabled": False,
         "webhook": "",                   # https://oapi.dingtalk.com/robot/send?access_token=xxx
@@ -78,6 +79,11 @@ def apply_watchlist(cfg):
     wl = cfg.get("watchlist")
     if wl:
         dn.WATCHLIST = wl
+
+
+def set_proxy(cfg):
+    """把代理配置注入 daily_news，影响后续所有 curl 请求（含检查更新/钉钉）。"""
+    dn.PROXY = (cfg.get("proxy") or "").strip()
 
 
 def save_config(cfg):
@@ -185,6 +191,7 @@ def fetch_all(cfg, progress=None):
     dn.ENABLE.update(cfg.get("enable", {}))
     dn.LOOSE_MATCH = bool(cfg.get("loose_match", False))
     apply_watchlist(cfg)
+    set_proxy(cfg)
     days = int(cfg.get("days", dn.DEFAULT_DAYS_BACK))
     keywords = [k for k in cfg.get("keywords", []) if k.strip()]
 
