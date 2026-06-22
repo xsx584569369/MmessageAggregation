@@ -59,6 +59,21 @@ iscc installer.iss
 - 程序依赖系统自带的 `curl`（Windows 10 1803+ 已内置）；更老的系统需自行安装 curl。
 - 图标用项目里的 `icon.ico`。
 
+### 云端自动出包（推荐 · 无需 Windows）
+
+仓库已配置 GitHub Actions（`.github/workflows/build-windows.yml`），在云端的原生 x64 Windows 上自动打包，**Mac 上无需虚拟机**。
+
+- **手动出包**：仓库 → Actions → 「构建 Windows 安装包」→ Run workflow（可填版本号）→ 跑完在 Artifacts 下载
+- **正式发版**：打 tag 自动构建并发布到 Releases：
+  ```bash
+  git tag v1.0.1 && git push origin v1.0.1
+  ```
+  安装包版本号取自 tag（`v1.0.1` → `1.0.1`），自动挂到 Releases 页并生成发布说明。
+
+版本号来源：
+- 应用内显示（窗口标题）：改 `app.py` 顶部的 `APP_VERSION`
+- 安装包版本：打 tag 时取 tag；手动运行时取输入框，留空为 `0.0.0-dev`
+
 ---
 
 ## 命令行用法

@@ -3,7 +3,9 @@
 ; 说明：用户数据存放在 %LOCALAPPDATA%\ChipNews，卸载不会删除（已抓取的消息/配置保留）。
 
 #define AppName "芯讯 · 存储芯片资讯台"
-#define AppVer "1.0.0"
+#ifndef AppVer
+  #define AppVer "1.0.0"
+#endif
 #define ExeName "ChipNews.exe"
 
 [Setup]

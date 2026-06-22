@@ -16,6 +16,7 @@ from PySide6.QtCore import Qt, QThread, Signal, QTimer, QSize
 
 import core
 
+APP_VERSION = "1.0.0"   # 发版时改这里；GitHub 打 tag 时安装包版本以 tag 为准
 SOURCES = [("em_feed", "东财个股流"), ("em_search", "东财搜索"),
            ("google", "Google"), ("yahoo", "Yahoo")]
 
@@ -474,7 +475,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._cards = {}         # url -> Card，供就地更新
         self._fav_item = None    # 左侧「收藏」树项，供就地更新计数
 
-        self.setWindowTitle("芯讯 · 存储芯片资讯台")
+        self.setWindowTitle(f"芯讯 · 存储芯片资讯台  v{APP_VERSION}")
         self.setWindowIcon(make_icon())
         self.resize(1180, 760)
         self.setMinimumSize(880, 560)

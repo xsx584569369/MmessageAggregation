@@ -1,10 +1,15 @@
 name: 构建 Windows 安装包
 
 # 触发方式：
-#   1) 手动：仓库 Actions 页面点 "Run workflow"
-#   2) 打 tag：push 形如 v1.0.0 的 tag，自动构建并发布到 Releases
+#   1) 手动：Actions 页 "Run workflow"，可填版本号（留空则为 dev）
+#   2) 打 tag：push 形如 v1.0.1 的 tag，自动用该版本构建并发布到 Releases
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号（如 1.0.1，留空则标记为 dev）'
+        required: false
+        default: ''
   push:
     tags:
       - 'v*'
@@ -19,6 +24,20 @@ jobs:
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
+
+      - name: 确定版本号
+        id: ver
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF -like 'refs/tags/v*') {
+            $v = $env:GITHUB_REF -replace 'refs/tags/v', ''
+          } elseif ('${{ github.event.inputs.version }}' -ne '') {
+            $v = '${{ github.event.inputs.version }}'
+          } else {
+            $v = '0.0.0-dev'
+          }
+          echo "version=$v" >> $env:GITHUB_OUTPUT
+          echo "版本号 = $v"
 
       - name: 安装 Python (x64)
         uses: actions/setup-python@v5
@@ -39,23 +58,27 @@ jobs:
       - name: 安装 Inno Setup
         run: choco install innosetup --no-progress -y
 
-      - name: 生成安装包
-        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss'
+      - name: 生成安装包（注入版本号）
+        run: >
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          /DAppVer=${{ steps.ver.outputs.version }} installer.iss
 
       - name: 上传绿色版（免安装 exe 目录）
         uses: actions/upload-artifact@v4
         with:
-          name: ChipNews-portable
+          name: ChipNews-portable-${{ steps.ver.outputs.version }}
           path: dist/ChipNews
 
       - name: 上传安装包
         uses: actions/upload-artifact@v4
         with:
-          name: ChipNews-installer
+          name: ChipNews-installer-${{ steps.ver.outputs.version }}
           path: installer_output/*.exe
 
       - name: 发布到 Releases（仅打 tag 时）
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          name: 芯讯 v${{ steps.ver.outputs.version }}
           files: installer_output/*.exe
+          generate_release_notes: true
