@@ -111,7 +111,8 @@ def _http_get(url, extra_headers=None):
     headers = dict(HEADERS)
     if extra_headers:
         headers.update(extra_headers)
-    cmd = ["curl", "-s", "-m", "12", "--connect-timeout", "6", "--compressed", url]
+    # 不用 --compressed：部分老版本 Windows 自带 curl 不支持该选项会直接报错(rc=2)
+    cmd = ["curl", "-s", "-m", "12", "--connect-timeout", "6", url]
     for k, v in headers.items():
         cmd += ["-H", f"{k}: {v}"]
     last = None
@@ -124,11 +125,12 @@ def _http_get(url, extra_headers=None):
                                creationflags=_NO_WINDOW)
             if p.returncode == 0 and p.stdout:
                 return p.stdout.decode("utf-8", errors="replace")
-            last = f"rc={p.returncode}"
+            err = p.stderr.decode("utf-8", errors="replace").strip()
+            last = f"rc={p.returncode}: {err[:120]}"
         except Exception as e:  # noqa: BLE001
             last = str(e)
         time.sleep(0.6)
-    print(f"  [warn] 请求失败: {url[:80]} ({last})", file=sys.stderr)
+    print(f"  [warn] 请求失败: {url[:70]} ({last})", file=sys.stderr)
     return None
 
 
