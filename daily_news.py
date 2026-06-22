@@ -193,7 +193,7 @@ def fetch_em_stock_feed(company, days_back):
     适用于有 secid 的 A 股 / 美股 / 港股。无需关键词过滤——本就是该股专属资讯。"""
     secid = company["secid"]
     url = ("https://np-listapi.eastmoney.com/comm/web/getListInfo"
-           f"?client=web&typefetch_em_stock_feed=1&mTypeAndCode={secid}&pageSize=30&pageIndex=1")
+           f"?client=web&type=1&mTypeAndCode={secid}&pageSize=30&pageIndex=1")
     txt = _http_get(url, extra_headers={"Referer": "https://quote.eastmoney.com/"})
     if not txt:
         return []
