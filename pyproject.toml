@@ -1,0 +1,9 @@
+[project]
+name = "mmessageaggregation"
+version = "0.1.0"
+description = "存储/芯片厂商资讯汇总：CLI(daily_news.py) + 桌面应用(app.py)"
+requires-python = ">=3.10"
+dependencies = ["PySide6>=6.6"]
+
+[tool.uv]
+package = false

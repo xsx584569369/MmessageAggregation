@@ -1,0 +1,61 @@
+name: 构建 Windows 安装包
+
+# 触发方式：
+#   1) 手动：仓库 Actions 页面点 "Run workflow"
+#   2) 打 tag：push 形如 v1.0.0 的 tag，自动构建并发布到 Releases
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write                  # 打 tag 时允许创建 Release
+
+jobs:
+  build:
+    runs-on: windows-latest        # 原生 x64 Windows，产出通用 exe
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python (x64)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: 'x64'
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install PySide6 pyinstaller
+
+      - name: PyInstaller 打包
+        run: >
+          pyinstaller --noconfirm --clean --windowed --onedir
+          --name ChipNews --icon icon.ico app.py
+
+      - name: 安装 Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: 生成安装包
+        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss'
+
+      - name: 上传绿色版（免安装 exe 目录）
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChipNews-portable
+          path: dist/ChipNews
+
+      - name: 上传安装包
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChipNews-installer
+          path: installer_output/*.exe
+
+      - name: 发布到 Releases（仅打 tag 时）
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: installer_output/*.exe
