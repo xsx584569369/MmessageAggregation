@@ -100,6 +100,10 @@ def _today():
     return datetime.date.today()
 
 
+# Windows 下隐藏子进程的控制台窗口（否则每次调 curl 都会闪一个黑窗口）
+_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
+
 def _http_get(url, extra_headers=None):
     """用系统 curl 发请求并返回响应文本。
     用 curl 而非 requests：东方财富等站点会对 requests 做 TLS 指纹识别返回空兜底，
@@ -113,7 +117,8 @@ def _http_get(url, extra_headers=None):
     last = None
     for _ in range(2):  # 2 次足够；过多重试在断网时会拖很久
         try:
-            p = subprocess.run(cmd, capture_output=True, timeout=15)
+            p = subprocess.run(cmd, capture_output=True, timeout=15,
+                               creationflags=_NO_WINDOW)
             if p.returncode == 0 and p.stdout:
                 return p.stdout.decode("utf-8", errors="replace")
             last = f"rc={p.returncode}"
