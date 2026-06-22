@@ -117,7 +117,10 @@ def _http_get(url, extra_headers=None):
     last = None
     for _ in range(2):  # 2 次足够；过多重试在断网时会拖很久
         try:
+            # stdin=DEVNULL 必须：打包成无控制台程序后父进程 stdin 句柄无效，
+            # 不重定向会导致子进程启动报 WinError 6（句柄无效），抓取全失败
             p = subprocess.run(cmd, capture_output=True, timeout=15,
+                               stdin=subprocess.DEVNULL,
                                creationflags=_NO_WINDOW)
             if p.returncode == 0 and p.stdout:
                 return p.stdout.decode("utf-8", errors="replace")
