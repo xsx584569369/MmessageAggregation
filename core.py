@@ -6,8 +6,13 @@ GUI 只跟本模块打交道，不直接碰 daily_news 的全局变量。
 """
 
 import json
+import time
+import hmac
+import base64
+import hashlib
 import threading
 from pathlib import Path
+from urllib.parse import quote_plus
 from concurrent.futures import ThreadPoolExecutor
 
 import daily_news as dn
@@ -25,7 +30,7 @@ ORIGIN_LABEL = {
 
 FETCH_WORKERS = 8  # 并发抓取的线程数
 
-APP_VERSION = "1.0.3"                          # 当前版本（发版时改这里 / 与 git tag 对应）
+APP_VERSION = "1.0.4"                          # 当前版本（发版时改这里 / 与 git tag 对应）
 GITHUB_REPO = "xsx584569369/MmessageAggregation"  # 检查更新用的仓库
 
 # 默认配置（首次运行写入 config.json，之后以文件为准）
@@ -38,6 +43,12 @@ DEFAULT_CONFIG = {
     "notify_only_keyword": False,        # 仅命中关键词才提醒
     "keywords": ["HBM", "涨价", "减产", "财报", "量产", "大宗交易"],
     "theme": "dark",                     # 界面主题：dark / light
+    "dingtalk": {                        # 钉钉自定义机器人推送
+        "enabled": False,
+        "webhook": "",                   # https://oapi.dingtalk.com/robot/send?access_token=xxx
+        "secret": "",                    # 安全设置选「加签」时填，否则留空
+        "keyword": "",                   # 安全设置选「关键词」时填该关键词
+    },
 }
 
 
@@ -247,6 +258,38 @@ def _ver_tuple(s):
         except ValueError:
             out.append(0)
     return tuple(out) or (0,)
+
+
+def push_dingtalk(cfg, text, title="芯讯 · 新资讯"):
+    """推送 markdown 消息到钉钉自定义机器人。返回 (ok: bool, msg: str)。
+    支持「加签」(secret) 与「关键词」(keyword) 两种安全设置。"""
+    dt = cfg.get("dingtalk") or {}
+    if not dt.get("enabled"):
+        return (False, "未启用钉钉推送")
+    url = (dt.get("webhook") or "").strip()
+    if not url:
+        return (False, "未配置 Webhook 地址")
+    secret = (dt.get("secret") or "").strip()
+    if secret:  # 加签
+        ts = str(int(time.time() * 1000))
+        sign = quote_plus(base64.b64encode(hmac.new(
+            secret.encode("utf-8"), f"{ts}\n{secret}".encode("utf-8"),
+            hashlib.sha256).digest()))
+        sep = "&" if "?" in url else "?"
+        url = f"{url}{sep}timestamp={ts}&sign={sign}"
+    kw = (dt.get("keyword") or "").strip()
+    md = text if (not kw or kw in text or kw in title) else f"{kw}\n\n{text}"
+    body = json.dumps({"msgtype": "markdown",
+                       "markdown": {"title": title, "text": md}},
+                      ensure_ascii=False)
+    resp = dn.http_post(url, body, extra_headers={"Content-Type": "application/json"})
+    if not resp:
+        return (False, "请求失败（网络或地址错误）")
+    try:
+        d = json.loads(resp)
+        return (d.get("errcode") == 0, d.get("errmsg", "未知响应"))
+    except Exception:  # noqa: BLE001
+        return (False, resp[:100])
 
 
 def check_update():

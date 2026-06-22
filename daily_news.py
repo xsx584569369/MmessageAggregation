@@ -132,6 +132,25 @@ def _http_get(url, extra_headers=None):
     return None
 
 
+def http_post(url, body, extra_headers=None):
+    """用系统 curl 发 POST（JSON），返回响应文本或 None。供钉钉等 webhook 推送用。"""
+    headers = dict(HEADERS)
+    if extra_headers:
+        headers.update(extra_headers)
+    cmd = ["curl", "-s", "-m", "12", "--connect-timeout", "6",
+           "-X", "POST", "--data-raw", body, url]
+    for k, v in headers.items():
+        cmd += ["-H", f"{k}: {v}"]
+    try:
+        p = subprocess.run(cmd, capture_output=True, timeout=15,
+                           stdin=subprocess.DEVNULL, creationflags=_NO_WINDOW)
+        if p.returncode == 0:
+            return p.stdout.decode("utf-8", errors="replace")
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
 def _within_days(date_str, days_back):
     """date_str 形如 '2026-06-12 17:31:00'，判断是否在最近 days_back 天内。"""
     if not date_str:

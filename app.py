@@ -9,6 +9,7 @@
 
 import sys
 import datetime
+import threading
 import webbrowser
 
 from PySide6 import QtCore, QtGui, QtWidgets
@@ -297,8 +298,17 @@ class SettingsDialog(QtWidgets.QDialog):
         super().__init__(parent)
         self.cfg = cfg
         self.setWindowTitle("设置 · 数据源与关键词")
-        self.resize(470, 540)
-        lay = QtWidgets.QVBoxLayout(self)
+        self.resize(480, 600)
+        outer = QtWidgets.QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QtWidgets.QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
+        content = QtWidgets.QWidget()
+        scroll.setWidget(content)
+        outer.addWidget(scroll, 1)
+        lay = QtWidgets.QVBoxLayout(content)
+        lay.setContentsMargins(16, 14, 16, 14)
         lay.setSpacing(9)
 
         lay.addWidget(self._h("数据源"))
@@ -367,12 +377,32 @@ class SettingsDialog(QtWidgets.QDialog):
         frow.addStretch()
         lay.addLayout(frow)
 
+        # 钉钉推送
+        lay.addWidget(self._h("钉钉推送（群自定义机器人）"))
+        dt = cfg.get("dingtalk") or {}
+        self.cb_dt = QtWidgets.QCheckBox("启用：有新资讯时自动推到钉钉群")
+        self.cb_dt.setChecked(dt.get("enabled", False))
+        lay.addWidget(self.cb_dt)
+        self.le_webhook = QtWidgets.QLineEdit(dt.get("webhook", ""))
+        self.le_webhook.setPlaceholderText("Webhook 地址（oapi.dingtalk.com/robot/send?access_token=…）")
+        self.le_secret = QtWidgets.QLineEdit(dt.get("secret", ""))
+        self.le_secret.setPlaceholderText("加签密钥 SEC…（安全设置选「加签」时填，否则留空）")
+        self.le_keyword = QtWidgets.QLineEdit(dt.get("keyword", ""))
+        self.le_keyword.setPlaceholderText("关键词（安全设置选「自定义关键词」时填）")
+        lay.addWidget(self.le_webhook)
+        lay.addWidget(self.le_secret)
+        lay.addWidget(self.le_keyword)
+        testbtn = QtWidgets.QPushButton("发送测试消息")
+        testbtn.clicked.connect(self._test_dingtalk)
+        lay.addWidget(testbtn)
+
         lay.addStretch()
         btns = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Save | QtWidgets.QDialogButtonBox.Cancel)
         btns.accepted.connect(self.accept)
         btns.rejected.connect(self.reject)
-        lay.addWidget(btns)
+        btns.setContentsMargins(12, 6, 12, 10)
+        outer.addWidget(btns)
 
     def _h(self, text):
         lb = QtWidgets.QLabel(text)
@@ -385,6 +415,22 @@ class SettingsDialog(QtWidgets.QDialog):
             self.kw_list.addItem(k)
         self.kw_input.clear()
 
+    def _dingtalk_cfg(self):
+        return {"enabled": self.cb_dt.isChecked(),
+                "webhook": self.le_webhook.text().strip(),
+                "secret": self.le_secret.text().strip(),
+                "keyword": self.le_keyword.text().strip()}
+
+    def _test_dingtalk(self):
+        tmp = {"dingtalk": dict(self._dingtalk_cfg(), enabled=True)}
+        ok, msg = core.push_dingtalk(
+            tmp, "这是一条来自「芯讯」的测试消息 ✅", "芯讯 · 测试")
+        if ok:
+            QtWidgets.QMessageBox.information(
+                self, "钉钉推送", "测试消息已发送成功，请到钉钉群查看。")
+        else:
+            QtWidgets.QMessageBox.warning(self, "钉钉推送", f"发送失败：{msg}")
+
     def result_config(self):
         self.cfg["enable"] = {k: cb.isChecked() for k, cb in self.src_checks.items()}
         self.cfg["keywords"] = [self.kw_list.item(i).text()
@@ -393,6 +439,7 @@ class SettingsDialog(QtWidgets.QDialog):
         self.cfg["notify_only_keyword"] = self.cb_only_kw.isChecked()
         self.cfg["interval_min"] = self.intervals[self.interval.currentIndex()][1]
         self.cfg["theme"] = self.themes[self.theme.currentIndex()][1]
+        self.cfg["dingtalk"] = self._dingtalk_cfg()
         return self.cfg
 
 
@@ -839,6 +886,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.items = res["items"]
         self.last_new = len(res["arrived"])
         self._notify(res["arrived"])
+        self._push_dingtalk(res["arrived"])
         self._build_tree()
         self.render_feed()
         self._update_status()
@@ -879,6 +927,24 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             head = "；".join(a["company"] for a in picks[:4])
             self.tray.showMessage(f"新增 {len(picks)} 条资讯", head, make_icon(), 8000)
+
+    def _push_dingtalk(self, arrived):
+        dt = self.cfg.get("dingtalk") or {}
+        if not dt.get("enabled") or not arrived:
+            return
+        only = self.cfg.get("notify_only_keyword", False)
+        picks = [a for a in arrived if a["kw_hit"]] if only else arrived
+        if not picks:
+            return
+        lines = []
+        for a in picks[:15]:
+            link = f"  [原文]({a['url']})" if a.get("url") else ""
+            lines.append(f"- **[{a['company']}]** {a['title']}{link}")
+        text = f"### 芯讯 · 新增 {len(picks)} 条资讯\n\n" + "\n\n".join(lines)
+        # 后台线程推送，避免阻塞界面
+        threading.Thread(
+            target=lambda: core.push_dingtalk(self.cfg, text),
+            daemon=True).start()
 
     # ---------- 导航树
     def _build_tree(self):
