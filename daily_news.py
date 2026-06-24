@@ -108,6 +108,34 @@ _NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 PROXY = ""
 
 
+def _system_proxy():
+    """读取 Windows 系统代理（VPN/翻墙工具常设的系统代理）。
+    curl 默认不认系统代理，这里读出来主动用上。非 Windows / 未设代理返回 ''。"""
+    if sys.platform != "win32":
+        return ""
+    try:
+        import winreg
+        k = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Internet Settings")
+        enable, _ = winreg.QueryValueEx(k, "ProxyEnable")
+        if not enable:
+            return ""
+        server, _ = winreg.QueryValueEx(k, "ProxyServer")
+        if not server:
+            return ""
+        if "=" in server:  # 形如 http=127.0.0.1:7890;https=...
+            parts = dict(p.split("=", 1) for p in server.split(";") if "=" in p)
+            server = parts.get("https") or parts.get("http") or next(iter(parts.values()))
+        return server if "://" in server else "http://" + server
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _effective_proxy():
+    return PROXY or _system_proxy()
+
+
 def _http_get(url, extra_headers=None):
     """用系统 curl 发请求并返回响应文本。
     用 curl 而非 requests：东方财富等站点会对 requests 做 TLS 指纹识别返回空兜底，
@@ -117,8 +145,9 @@ def _http_get(url, extra_headers=None):
         headers.update(extra_headers)
     # 不用 --compressed：部分老版本 Windows 自带 curl 不支持该选项会直接报错(rc=2)
     cmd = ["curl", "-s", "-m", "12", "--connect-timeout", "6", url]
-    if PROXY:
-        cmd += ["--proxy", PROXY]
+    proxy = _effective_proxy()
+    if proxy:
+        cmd += ["--proxy", proxy]
     for k, v in headers.items():
         cmd += ["-H", f"{k}: {v}"]
     last = None
@@ -147,8 +176,9 @@ def http_post(url, body, extra_headers=None):
         headers.update(extra_headers)
     cmd = ["curl", "-s", "-m", "12", "--connect-timeout", "6",
            "-X", "POST", "--data-raw", body, url]
-    if PROXY:
-        cmd += ["--proxy", PROXY]
+    proxy = _effective_proxy()
+    if proxy:
+        cmd += ["--proxy", proxy]
     for k, v in headers.items():
         cmd += ["-H", f"{k}: {v}"]
     try:
