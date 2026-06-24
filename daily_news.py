@@ -132,7 +132,14 @@ def _system_proxy():
         return ""
 
 
-def _effective_proxy():
+# 仅这些海外域名走代理；东财(eastmoney)、钉钉(dingtalk)等国内域名一律直连。
+_PROXY_DOMAINS = ("google.com", "yahoo.com", "github.com", "githubusercontent.com")
+
+
+def _effective_proxy(url=""):
+    """分源代理：海外域名用代理，国内域名直连。代理取手动配置，未配则取系统代理。"""
+    if not any(d in url for d in _PROXY_DOMAINS):
+        return ""  # 国内源（东财/钉钉等）直连
     return PROXY or _system_proxy()
 
 
@@ -145,7 +152,7 @@ def _http_get(url, extra_headers=None):
         headers.update(extra_headers)
     # 不用 --compressed：部分老版本 Windows 自带 curl 不支持该选项会直接报错(rc=2)
     cmd = ["curl", "-s", "-m", "12", "--connect-timeout", "6", url]
-    proxy = _effective_proxy()
+    proxy = _effective_proxy(url)
     if proxy:
         cmd += ["--proxy", proxy]
     for k, v in headers.items():
@@ -176,7 +183,7 @@ def http_post(url, body, extra_headers=None):
         headers.update(extra_headers)
     cmd = ["curl", "-s", "-m", "12", "--connect-timeout", "6",
            "-X", "POST", "--data-raw", body, url]
-    proxy = _effective_proxy()
+    proxy = _effective_proxy(url)
     if proxy:
         cmd += ["--proxy", proxy]
     for k, v in headers.items():
